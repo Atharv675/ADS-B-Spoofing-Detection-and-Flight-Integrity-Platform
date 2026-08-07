@@ -17,8 +17,7 @@ and made explorable through two interactive dashboards built on top of the same 
 
 **→ Full results, benchmark tables, and design rationale:
 [`reports/EVALUATION_REPORT.md`](reports/EVALUATION_REPORT.md)**
-**→ Layer-by-layer walkthrough, real-world comparison, and portfolio assessment:
-[`PROJECT_DEEP_DIVE.txt`](PROJECT_DEEP_DIVE.txt)**
+
 
 ## Results at a glance
 
