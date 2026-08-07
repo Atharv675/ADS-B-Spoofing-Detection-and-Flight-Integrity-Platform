@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./.venv/Scripts/python.exe -c \"import absproj\")",
+      "Bash(./.venv/Scripts/python.exe -c ' *)"
+    ]
+  }
+}

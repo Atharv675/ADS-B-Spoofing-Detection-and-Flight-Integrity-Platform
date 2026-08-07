@@ -1,0 +1,29 @@
+{
+  "jamming_zone": {
+    "region": "baltic_jamming_zone",
+    "n_rows": 2335,
+    "n_tracks": 79,
+    "nis_flag_rate": 0.060726950354609927,
+    "ml_flag_rate": 0.05540780141843971,
+    "mlat_flag_rate": 0.0021413276231263384,
+    "radar_flag_rate": 0.0,
+    "n_kalman_updates": 2256
+  },
+  "control": {
+    "region": "clean_control_western_europe",
+    "n_rows": 8617,
+    "n_tracks": 838,
+    "nis_flag_rate": 0.02236791361357501,
+    "ml_flag_rate": 0.014654839953721558,
+    "mlat_flag_rate": 0.008123476848090982,
+    "radar_flag_rate": 0.009051874202158524,
+    "n_kalman_updates": 7779
+  },
+  "ratios": {
+    "nis": 2.714913487405233,
+    "ml": 3.7808533967898468,
+    "mlat": 0.2635974304068523,
+    "radar": null
+  },
+  "caveat": "Plausibility check only: no per-row ground truth exists for real traffic, so this reports detection ACTIVITY RATE (fraction of updates flagged), not precision/recall/F1. A higher rate in the jamming zone is consistent with real interference but is not proof of it -- regional traffic mix, receiver geometry, and other confounds are not controlled for."
+}

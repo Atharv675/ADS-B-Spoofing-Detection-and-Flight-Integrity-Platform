@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+reports/*.html
+reports/*.png
+reports/dashboard_snapshot.json
+models/*.joblib
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# logs / coverage
+*.log
+.coverage
+htmlcov/

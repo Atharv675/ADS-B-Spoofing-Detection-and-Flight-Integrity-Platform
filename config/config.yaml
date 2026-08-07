@@ -1,0 +1,217 @@
+# Non-secret configuration. Secrets (credentials, DB password) live in .env.
+# All thresholds/parameters used anywhere in the pipeline should be added here,
+# not hardcoded in code, per the project's engineering requirements.
+
+opensky:
+  states_url: "https://opensky-network.org/api/states/all"
+  token_url: "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
+  # Bounding box for polling: a busy chunk of Western/Central Europe airspace.
+  bbox:
+    lamin: 45.0
+    lamax: 55.0
+    lomin: 5.0
+    lomax: 15.0
+  request_timeout_seconds: 15
+  # Anonymous OpenSky limits are ~1 req/10s; be conservative until credentials are added.
+  poll_interval_seconds: 15
+  max_retries: 3
+  retry_backoff_seconds: 5
+
+database:
+  # Host/port/db/user/password come from environment (.env). This section holds
+  # non-secret pool/connection behavior only.
+  connect_timeout_seconds: 10
+
+kalman:
+  # Process noise (m/s^2 std dev of unmodeled acceleration) per dynamics
+  # category bucket -- see tracking/categories.py for how a track is bucketed.
+  process_noise_sigma_a:
+    light: 3.5
+    transport: 2.0
+    high_performance: 7.0
+  # Position measurement noise (assumed independent horizontal/vertical).
+  measurement_noise:
+    sigma_horizontal_m: 20.0
+    sigma_vertical_m: 30.0
+  # Initial velocity uncertainty (std dev, m/s) used when a track is (re)initialized.
+  initial_velocity_std_mps: 50.0
+  # NIS chi-square test false-positive rate under H0 (filter well-tuned, clean traffic).
+  chi_square_alpha: 0.01
+  # If the gap since a track's last update exceeds this, reset its filter
+  # (treat as a new track) instead of predicting across a large unobserved gap.
+  track_gap_reset_seconds: 120
+
+ml:
+  # Number of prior updates (same track) averaged into the rolling-trend features.
+  rolling_window: 5
+  # abs(vz) below this (m/s, Kalman-estimated vertical velocity) counts as "level" flight.
+  level_flight_vz_threshold_mps: 1.5
+  isolation_forest:
+    n_estimators: 200
+    # Expected fraction of anomalous updates -- unsupervised, so this is a prior,
+    # not measured from labels. Set close to Phase 2's observed clean-traffic NIS
+    # flag rate as a starting point; revisited with real held-out data in Phase 7.
+    contamination: 0.02
+    random_state: 42
+
+mlat:
+  # SIMULATED ground receiver network -- not a real sensor network. Fixed
+  # coordinates spread across the polled bbox (lamin=45, lamax=55, lomin=5,
+  # lomax=15) to give reasonable geometric diversity (GDOP) for TDOA
+  # multilateration. Originally 6 receivers all clustered at lon >= 8.55;
+  # verified against real traffic that aircraft near the bbox's western edge
+  # (lon ~5, outside the network's convex hull) got wildly degraded solves
+  # (300+ km disagreement) purely from bad geometry, not noise or a bug --
+  # added luxembourg and hamburg to actually bracket the polled area.
+  receivers:
+    - {name: stuttgart,  lat: 48.78, lon: 9.18,  alt: 250}
+    - {name: munich,     lat: 48.14, lon: 11.58, alt: 520}
+    - {name: zurich,     lat: 47.45, lon: 8.55,  alt: 430}
+    - {name: hannover,   lat: 52.37, lon: 9.73,  alt: 55}
+    - {name: berlin,     lat: 52.52, lon: 13.40, alt: 35}
+    - {name: milan,      lat: 45.46, lon: 9.19,  alt: 120}
+    - {name: luxembourg, lat: 49.61, lon: 6.13,  alt: 300}
+    - {name: hamburg,    lat: 53.55, lon: 10.00, alt: 10}
+  reference_receiver_index: 0
+  speed_of_light_mps: 299792458.0
+  # Simulated per-receiver timing measurement noise (std dev, nanoseconds) --
+  # stands in for real-world receiver clock sync error / multipath.
+  timing_noise_std_ns: 50.0
+  # Flat position-disagreement gate (meters) between the MLAT solve and the
+  # broadcast position. Set to the empirical 99th percentile of disagreement
+  # observed on 142,587 real clean-traffic updates with the 8-receiver network
+  # (~88m) -- i.e. targeting a ~1% flag rate on clean data, the same
+  # alpha=0.01 philosophy as the NIS chi-square gate in Phase 2, chosen
+  # empirically rather than derived analytically since the noise here isn't
+  # perfectly Gaussian either (see run_mlat.py verification notes).
+  disagreement_threshold_m: 88.0
+  random_seed: 123
+
+radar:
+  # SIMULATED single primary-radar site -- not a real sensor. Real primary
+  # (skin-paint) radar reports position + velocity only, no identity/
+  # transponder data; this module keys results by icao24 purely as internal
+  # simulation bookkeeping (to compare a plot back to "the same" aircraft's
+  # broadcast), which is a simplification real radar-to-ADS-B fusion doesn't
+  # get for free (it needs a separate plot-to-track association/gating step).
+  # One site only (deliberately -- brief calls for this component to stay
+  # small): placed at the polling bbox center, so accuracy realistically
+  # degrades with range/distance from the site, same as a real single radar's
+  # coverage falloff.
+  site: {lat: 50.0, lon: 10.0}
+  # Time separation (seconds) between the two synthetic plots used to derive
+  # a velocity estimate by finite difference -- real primary radar doesn't
+  # measure velocity directly either, it's derived scan-to-scan. Roughly a
+  # typical fast-rotating ATC radar's revisit interval.
+  plot_interval_s: 4.0
+  range_noise_std_m: 50.0
+  azimuth_noise_std_deg: 0.2
+  # Position-disagreement gate (meters). Set to the empirical 99th percentile
+  # of disagreement observed on 142,587 real clean-traffic updates (~3775m --
+  # a single site's angular error genuinely gets into the low kilometers for
+  # aircraft near the far edge of the ~600km-wide polling bbox; a first
+  # attempt at 1500m was too tight and flagged ~19% of clean traffic).
+  # Same alpha~=0.01 targeting as MLAT/NIS.
+  disagreement_threshold_m: 3775.0
+  random_seed: 456
+
+attacks:
+  # Adversarial testbed. Substrate ("donor") tracks are real, already-ingested
+  # clean airborne track_state history -- attacks are built by modifying or
+  # recombining real trajectories, never invented from nothing except the
+  # ghost class (which has no substrate by definition).
+  min_substrate_track_length: 15
+  # Raised from 12 -> 20: with only 12 variants (6 train/6 test per class),
+  # icao_collision's train/test split was small enough that train recall
+  # (71%) and test recall (57%) diverged by 15 points -- a small-sample
+  # artifact, not a real generalization gap. More variants stabilizes that.
+  variants_per_class: 20
+  train_fraction: 0.5
+  # Entire class excluded from the train split (used only for evaluation) to
+  # test cross-class generalization, per the brief. Track hijack chosen as
+  # the held-out class: its detection signature (a mid-track discontinuity
+  # with no real physical corroboration after the splice) is the least
+  # similar to the other four, making it the most informative generalization
+  # test -- if fusion tuned only on the other four still catches this one
+  # reasonably, that's a meaningful result; if not, that's honest too.
+  holdout_class: track_hijack
+  random_seed: 777
+  # Per-class severity range, in the physical unit that class actually uses.
+  # position_drift/track_hijack/replay are deliberately harmonized onto the
+  # same meters-based scale (20m-6000m), chosen to straddle both MLAT's
+  # (~88m) and radar's (~3775m) calibrated detection thresholds -- earlier
+  # ranges sat entirely above both thresholds (e.g. drift's old 200m-5000m,
+  # replay's old staleness-seconds-times-speed formula implying 24km-720km
+  # jumps), which made every single variant trivially detectable and told us
+  # nothing about where detection actually breaks down. A benchmark where
+  # every method scores 100% on the "hard" cases isn't rigorous, it's just
+  # under-tested -- these ranges now include genuinely sub-threshold cases.
+  severity_ranges:
+    ghost: {min: 0.0, max: 1.0}               # 0=smooth flight (undetectable by NIS by design), 1=erratic beyond category dynamics
+    position_drift: {min: 20.0, max: 6000.0}   # meters, final broadcast offset from true position
+    icao_collision: {min: 0.1, max: 1.0}       # fraction of the merged window where both streams overlap in time
+    track_hijack: {min: 0.0, max: 6000.0}      # meters, extra position discontinuity injected at the splice (0 = pure identity/kinematic hijack, no added jump)
+    replay: {min: 20.0, max: 6000.0}           # meters, extra position discontinuity injected at the splice -- same direct physical meaning as track_hijack, not a derived staleness formula
+
+rule_based:
+  # Naive, non-adaptive baseline: no Kalman filter, no per-category tuning --
+  # just a fixed physical sanity bound on implied speed/turn-rate between two
+  # consecutive raw broadcasts. What the benchmark's "did we even need the
+  # rest of this project" row uses.
+  max_speed_mps: 350.0       # ~Mach 1 at altitude; generous upper bound for civil traffic
+  max_turn_rate_deg_s: 10.0  # a standard-rate turn is ~3 deg/s; well above any normal maneuver
+
+evaluation:
+  # Real tracks not used as attack substrate, reserved for fusion-model
+  # training (clean negative examples) and for the separate clean-traffic
+  # false-positive measurement, split so FPR is measured on tracks the fusion
+  # model never saw.
+  clean_train_track_count: 150
+  clean_test_track_count: 150
+  fusion_random_state: 42
+  random_seed: 999
+
+jamming_zone:
+  # Phase 8 real-world validation. Region: Kaliningrad/Baltic corridor,
+  # documented as an active, ongoing GPS/ADS-B interference zone (Russian
+  # electronic warfare from the Kaliningrad exclave) -- not a one-off
+  # historical event, so live collection now samples genuinely affected
+  # traffic. OpenSky's true historical archive (Trino) requires
+  # institutional/academic access we don't have, and the one practical free
+  # bulk archive (ADSB.lol's globe_history) turned out to be multi-terabyte
+  # global daily dumps with no lightweight per-region query path -- live
+  # collection from a persistently active zone was the practical option.
+  # Sources: Spire Global GNSS interference report (Kaliningrad & Baltic Sea,
+  # 2024/2025), ERR News "GPS interference across the Baltic region", both
+  # 2025-2026 reporting confirming this is ongoing, not historical.
+  bbox: {lamin: 53.5, lamax: 59.5, lomin: 17.5, lomax: 24.0}
+  source_tag: "baltic_jamming_zone"
+  collection_minutes: 10
+  poll_interval_seconds: 15
+  # SIMULATED regional MLAT receiver network + radar site for THIS bbox --
+  # the Phase 4/5 network was built around the Western-Europe polling bbox
+  # and is geographically meaningless here (reusing it as-is would produce
+  # huge disagreement values from sheer distance, not genuine signal, the
+  # same class of mistake Phase 4 already found and fixed once for the
+  # original network). Noise/threshold parameters are still inherited from
+  # config.mlat / config.radar -- only geometry changes per region.
+  mlat_receivers:
+    - {name: gdansk,   lat: 54.35, lon: 18.65, alt: 20}
+    - {name: kaunas,   lat: 54.90, lon: 23.90, alt: 70}
+    - {name: riga,     lat: 56.95, lon: 24.10, alt: 10}
+    - {name: stockholm, lat: 59.33, lon: 18.06, alt: 25}
+    - {name: kalmar,   lat: 56.66, lon: 16.36, alt: 15}
+    - {name: bornholm, lat: 55.10, lon: 14.90, alt: 15}
+    - {name: klaipeda, lat: 55.71, lon: 21.14, alt: 5}
+  radar_site: {lat: 56.5, lon: 20.75}
+  # Comparable-duration clean control window sampled from our existing
+  # Western-Europe accumulated traffic, per the brief's requirement to
+  # compare against "a comparable time window/region with no documented
+  # interference" -- not the full accumulated history, so the comparison
+  # isn't skewed by wildly different sample sizes.
+  control_window_minutes: 10
+  control_random_seed: 2026
+
+logging:
+  level: INFO
+  format: json
