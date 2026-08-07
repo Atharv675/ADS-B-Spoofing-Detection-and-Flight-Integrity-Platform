@@ -20,24 +20,6 @@ and made explorable through two interactive dashboards built on top of the same 
 **→ Layer-by-layer walkthrough, real-world comparison, and portfolio assessment:
 [`PROJECT_DEEP_DIVE.txt`](PROJECT_DEEP_DIVE.txt)**
 
-## Status
-
-**Phases 1–9 complete**, verified against real data throughout, plus two interactive dashboards built on
-the same production code paths (not a separate demo layer).
-
-| Phase | What | Status |
-|---|---|---|
-| 1 | Ingestion (OpenSky) + storage schema | ✅ |
-| 2 | Per-track Kalman filter + NIS/chi-square statistical test | ✅ |
-| 3 | Isolation Forest ML layer on Kalman-derived features | ✅ |
-| 4 | Simulated multilateration (MLAT) | ✅ |
-| 5 | Simulated primary radar | ✅ |
-| 6 | Adversarial testbed (5 attack classes, held-out split) | ✅ |
-| 7 | Evidence fusion + full benchmark evaluation | ✅ |
-| 8 | Real-world validation (documented GPS interference zone) | ✅ |
-| 9 | Evaluation report | ✅ |
-| — | Interactive live dashboard + shareable snapshot artifact | ✅ |
-
 ## Results at a glance
 
 Full tables, methodology, and per-method breakdowns are in
